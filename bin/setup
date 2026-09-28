@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# Builds the gem and installs it into each Ruby that runs `cookstyle` on this machine.
+# Run it again after each pull to install the version on main.
+#
+# On a workstation that is usually cinc-workstation's embedded Ruby. Its gem directory belongs
+# to root, so the gem goes into the user gem directory (~/.chef/gem), which the cookstyle
+# binstub also loads from.
+
+set -euo pipefail
+root="$(cd "$(dirname "$0")/.."; pwd)"
+cd "$root"
+
+# Every Ruby script named cookstyle that this machine runs: the ones on the PATH, and the ones in
+# mise's Ruby installs, which a cookbook with a .ruby-version selects through the mise shim.
+cookstyles() {
+  for candidate in $(type -ap cookstyle); do
+    if head -c 2 "$candidate" | grep -q '#!'; then
+      echo "$candidate"
+    fi
+  done
+
+  if command -v mise >/dev/null 2>&1; then
+    ls "$(mise where ruby 2>/dev/null | xargs dirname 2>/dev/null)"/*/bin/cookstyle 2>/dev/null || true
+  fi
+}
+
+install_for() {
+  local cookstyle="$1"
+  local ruby gem_dir cookstyle_version bin_dir package
+
+  ruby="$(head -n 1 "$cookstyle" | sed -e 's/^#! *//' -e 's#^/usr/bin/env ##' | cut -d ' ' -f 1)"
+  if [ "$ruby" = "ruby" ]; then
+    ruby="$(dirname "$cookstyle")/ruby"
+  fi
+
+  cookstyle_version="$("$ruby" -e 'print Gem::Specification.find_by_name("cookstyle").version' 2>/dev/null || true)"
+  if ! "$ruby" -e 'exit Gem::Requirement.new("~> 8.6").satisfied_by?(Gem::Version.new(ARGV[0]))' "$cookstyle_version" 2>/dev/null; then
+    echo "⚠️  Skipped $cookstyle: it runs Cookstyle ${cookstyle_version:-unknown}, and cookstyle-37signals needs ~> 8.6."
+    echo "   A cookbook that selects this Ruby fails to load its .rubocop.yml. Upgrade or uninstall that Cookstyle."
+    return
+  fi
+
+  # Two cookstyle scripts can run the same Ruby, eg. the cinc binstub and the gem's own.
+  case " ${installed_rubies:-} " in *" $ruby "*) return ;; esac
+  installed_rubies="${installed_rubies:-} $ruby"
+
+  package="$(mktemp -d)/cookstyle-37signals.gem"
+  "$ruby" -S gem build --silent cookstyle-37signals.gemspec --output "$package"
+
+  gem_dir="$("$ruby" -e 'print Gem.dir')"
+  if [ -w "$gem_dir" ]; then
+    "$ruby" -S gem install --local --no-document --quiet "$package" 2>&1 | grep -v "in your PATH\\|will not run" || true
+    bin_dir="$("$ruby" -e 'print Gem.bindir')"
+  else
+    "$ruby" -S gem install --local --no-document --quiet --user-install "$package" 2>&1 | grep -v "in your PATH\\|will not run" || true
+    bin_dir="$("$ruby" -e 'print File.join(Gem.user_dir, "bin")')"
+  fi
+
+  rm -f "$package"
+  echo "Installed cookstyle-37signals for $cookstyle"
+
+  # Pre-commit hooks run cookbook-lint from the PATH. Link the first install.
+  if [ -z "${linked:-}" ]; then
+    mkdir -p "$HOME/.local/bin"
+    ln -sf "$bin_dir/cookbook-lint" "$HOME/.local/bin/cookbook-lint"
+    linked=1
+  fi
+}
+
+found=""
+for cookstyle in $(cookstyles | xargs -n 1 realpath | sort -u); do
+  install_for "$cookstyle"
+  found=1
+done
+
+if [ -z "$found" ]; then
+  echo "cookstyle not found. Install cinc-workstation first."
+  exit 1
+fi

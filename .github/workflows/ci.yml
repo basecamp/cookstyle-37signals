@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+
+      - name: Install Cookstyle
+        run: gem install --no-document cookstyle -v 8.6.10
+
+      - name: Tests
+        run: rake test
+
+      - name: Cookstyle
+        run: cookstyle --fail-level R

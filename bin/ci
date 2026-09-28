@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Lints the cookbook in the current directory in CI. Run it in a cincproject/workstation image
+# that ships the Cookstyle version that workstations run.
+#
+# Cookstyle defaults to --fail-level C, and most Chef cops report with refactor severity.
+
+set -euo pipefail
+gem_root="$(cd "$(dirname "$0")/.."; pwd)"
+
+"$gem_root/bin/setup"
+
+status=0
+
+echo "--- :cookstyle: Cookstyle"
+cookstyle --fail-level R || status=1
+
+echo "--- :page_facing_up: Templates and files"
+"$HOME/.local/bin/cookbook-lint" || status=1
+
+exit $status

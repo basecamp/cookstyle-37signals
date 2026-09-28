@@ -1,0 +1,97 @@
+# 37signals style for Chef cookbooks. A cookbook inherits this alongside house style:
+#
+#   inherit_from:
+#     - https://raw.githubusercontent.com/basecamp/house-style/refs/heads/main/rubocop-ruby.yml
+#   inherit_gem:
+#     cookstyle-37signals: config/default.yml
+
+require:
+  - cookstyle-37signals
+
+inherit_from:
+  - chef.yml
+
+AllCops:
+  # The Ruby that cinc-client 18 embeds. Without it, Cookstyle parses as Ruby 2.6 and reports
+  # syntax errors for newer syntax. Raise it when every node runs cinc-client 19 (Ruby 3.4).
+  TargetRubyVersion: 3.1
+
+# node["platform_version"], not node[:platform_version].
+Chef/Style/AttributeKeys:
+  Enabled: true
+  EnforcedStyle: strings
+
+# "# TODO: " for improvements later, "# FIXME: " for problems to resolve before production.
+Style/CommentAnnotation:
+  Enabled: true
+  Keywords:
+    - TODO
+    - FIXME
+
+Cookbook/CronD:
+  Description: Use the `cron_d` resource instead of `cron`.
+  Enabled: true
+  Include:
+    - "**/recipes/**/*.rb"
+    - "**/resources/**/*.rb"
+    - "**/libraries/**/*.rb"
+
+# Reported with info severity, which does not fail the run, until the existing crons log to the journal.
+Cookbook/CronDLogger:
+  Description: Pipe cron output to the journal with `2>&1 | logger -t <tag>`.
+  Enabled: true
+  Severity: info
+  Include:
+    - "**/recipes/**/*.rb"
+    - "**/resources/**/*.rb"
+
+Cookbook/ExecuteGuard:
+  Description: Guard shell resources with `not_if`, `only_if` or `creates`.
+  Enabled: true
+  Resources:
+    - bash
+    - csh
+    - execute
+    - ksh
+    - perl
+    - python
+    - ruby
+    - script
+  Include:
+    - "**/recipes/**/*.rb"
+    - "**/resources/**/*.rb"
+
+Cookbook/LocalIncludeRecipe:
+  Description: Include recipes from the same cookbook as `"::recipe"`.
+  Enabled: true
+  Include:
+    - "**/recipes/**/*.rb"
+
+# Reported with info severity, which does not fail the run, because the cop cannot always
+# tell whether the secret reaches the resource.
+Cookbook/SensitiveSecret:
+  Description: Set `sensitive true` on resources that use a secret.
+  Enabled: true
+  Severity: info
+  Resources:
+    - bash
+    - execute
+    - file
+    - http_request
+    - remote_file
+    - script
+    - template
+  SecretReaders:
+    - chef_vault_item
+    - data_bag_item
+    - vault_item
+  Include:
+    - "**/recipes/**/*.rb"
+    - "**/resources/**/*.rb"
+
+# Not the root Policyfile.rb, which test-kitchen uses to converge the underscore recipes directly.
+Cookbook/UnderscoreRunList:
+  Description: Put top-level role recipes in a policy's run list.
+  Enabled: true
+  Include:
+    - "**/policyfiles/*.rb"

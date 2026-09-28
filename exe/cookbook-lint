@@ -1,0 +1,14 @@
+#!/usr/bin/env ruby
+# Checks a cookbook's templates and static files.
+#
+#   cookbook-lint                  # every template and file in the cookbook in the current directory
+#   cookbook-lint templates/a.erb  # only the given paths
+#
+# Exits 1 when there are errors (E). Warnings (W) are reported but do not fail the run.
+
+require_relative "../lib/cookstyle_37signals/file_checks"
+
+offenses = Cookstyle37signals::FileChecks.new(Dir.pwd).check(ARGV)
+offenses.each { |offense| puts offense }
+
+exit(offenses.any? { |offense| offense.severity == :error } ? 1 : 0)
