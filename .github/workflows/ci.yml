@@ -39,7 +39,7 @@ jobs:
           ruby-version: "3.4"
 
       - name: Install Cookstyle
-        run: gem install --no-document cookstyle -v 8.6.10
+        run: gem install --no-document cookstyle -v 8.6.10 # zizmor: ignore[adhoc-packages] -- this repo has no Gemfile, and the step pins an exact version
 
       - name: Tests
         run: rake test
